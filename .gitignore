@@ -1,0 +1,12 @@
+# Local tools, dependencies and build products
+deps/
+build/
+pod/build/
+__pycache__/
+*.py[cod]
+.DS_Store
+*.elf
+*.hex
+*.o
+*.lst
+*.map

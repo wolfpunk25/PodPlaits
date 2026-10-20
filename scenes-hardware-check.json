@@ -1,0 +1,30 @@
+{
+  "slot": 1,
+  "name": "FIRST SOUND",
+  "state": [
+    8,
+    607,
+    299,
+    446,
+    673,
+    215,
+    680,
+    645,
+    704,
+    579,
+    0,
+    0,
+    60,
+    49,
+    0
+  ],
+  "scene": [
+    0,
+    4,
+    2,
+    1,
+    0,
+    "FIRST SOUND"
+  ],
+  "checks": "save, dirty tracking, restore, overwrite backup, muted audio benchmark zero misses, restart persistence"
+}

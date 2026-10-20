@@ -1,0 +1,27 @@
+Plaits booted: [14, 500, 999, 923, 333, 650, 260, 250, 150, 400, 0, 0, 48, 49, 0]
+model 00: peak 36%, missed blocks 0
+model 01: peak 44%, missed blocks 0
+model 02: peak 41%, missed blocks 0
+model 03: peak 38%, missed blocks 0
+model 04: peak 36%, missed blocks 0
+model 05: peak 39%, missed blocks 0
+model 06: peak 44%, missed blocks 0
+model 07: peak 30%, missed blocks 0
+model 08: peak 40%, missed blocks 0
+model 09: peak 37%, missed blocks 0
+model 10: peak 40%, missed blocks 0
+model 11: peak 41%, missed blocks 0
+model 12: peak 40%, missed blocks 0
+model 13: peak 39%, missed blocks 0
+model 14: peak 41%, missed blocks 0
+model 15: peak 52%, missed blocks 0
+model 16: peak 37%, missed blocks 0
+model 17: peak 38%, missed blocks 0
+model 18: peak 55%, missed blocks 0
+model 19: peak 56%, missed blocks 0
+model 20: peak 41%, missed blocks 0
+model 21: peak 36%, missed blocks 0
+model 22: peak 38%, missed blocks 0
+model 23: peak 37%, missed blocks 0
+PASS: all 24 engines on Pod; maximum peak 56%
+Restored: [14, 500, 500, 500, 333, 650, 260, 250, 150, 400, 0, 0, 58, 42, 0]
