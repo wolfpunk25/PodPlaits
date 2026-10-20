@@ -3,6 +3,8 @@
 #include <XPT2046_Touchscreen.h>
 #include <Preferences.h>
 #include "Moods.h"
+// Dedicated 3.3V link: GPIO35 RX, GPIO27 TX. USB remains for updates/diagnostics.
+HardwareSerial podLink(2);
 TFT_eSPI tft;SPIClass touchSpi(VSPI);XPT2046_Touchscreen touch(33,36);Preferences preferences;
 float ax=0,bx=0,cx=0,ay=0,by=0,cy=0;
 const uint16_t bg=0x0000,panel=0x18E3,mint=0x7DB7,ink=0xBDF7,dim=0x7BEF;
@@ -51,7 +53,7 @@ void drawPlay(){if(sceneEditing)return;tft.fillRoundRect(14,208,292,30,6,playing
 void sceneSendSave(){
  char hex[41];const char* digits="0123456789ABCDEF";unsigned n=strlen(sceneName);
  for(unsigned i=0;i<n;i++){unsigned c=static_cast<unsigned char>(sceneName[i]);hex[2*i]=digits[c>>4];hex[2*i+1]=digits[c&15];}hex[2*n]=0;
- sceneAwaitSave=true;Serial.printf("SCENE SAVE %d %s\n",sceneSlot,hex);sceneConfirm=false;drawScenes();
+ sceneAwaitSave=true;podLink.printf("SCENE SAVE %d %s\n",sceneSlot,hex);sceneConfirm=false;drawScenes();
 }
 void sceneButton(int x,int y,int width,const char* text,uint16_t color){tft.fillRoundRect(x,y,width,36,5,panel);tft.drawRoundRect(x,y,width,36,5,color);tft.setTextColor(color,panel);tft.drawCentreString(text,x+width/2,y+10,2);}
 void drawScenes(){
@@ -111,7 +113,7 @@ void calibrate() {
  float calibration[]={ax,bx,cx,ay,by,cy};preferences.putBytes("cal",calibration,sizeof(calibration));
 }
 void setup() {
- Serial.begin(115200);initRearLed();pinMode(21,OUTPUT);digitalWrite(21,HIGH);
+ Serial.begin(115200);podLink.setRxBufferSize(1024);podLink.begin(115200,SERIAL_8N1,35,27);initRearLed();pinMode(21,OUTPUT);digitalWrite(21,HIGH);
  tft.init();tft.setRotation(1);tft.invertDisplay(true);touchSpi.begin(25,39,32,33);touch.begin(touchSpi);touch.setRotation(1);
  preferences.begin("ambient",false);
  float c[6];bool valid=preferences.getBytesLength("cal")==sizeof(c);
@@ -120,13 +122,13 @@ void setup() {
 }
 void loop(){
  static char line[256];static unsigned used=0;static bool overflow=false,wasDown=false;
- while(Serial.available()){
-  char c=Serial.read();if(c=='\n'){
+ while(podLink.available()){
+  char c=podLink.read();if(c=='\n'){
    line[used]=0;int m,v[9],p,d,n;unsigned peak,missed;
    if(!overflow&&sscanf(line,"PSTATE %d %d %d %d %d %d %d %d %d %d %d %d %d %u %u",&m,&v[0],&v[1],&v[2],&v[3],&v[4],&v[5],&v[6],&v[7],&v[8],&p,&d,&n,&peak,&missed)==15){
     bool valid=m>=0&&m<24&&(p==0||p==1)&&(d==0||d==1);for(int i=0;i<9;i++)if(v[i]<0||v[i]>1000)valid=false;
     if(valid){if(model!=m){model=m;if(page==0)drawModel();}for(int i=0;i<9;i++)if(values[i]!=v[i]){values[i]=v[i];if(i/3==page)drawRow(i,rowY(i%3));}
-     if(drone!=bool(d)){drone=d;if(page==1)drawMode();}if(playing!=bool(p)){playing=p;drawPlay();}if(!linked){linked=true;drawHeader();}lastState=millis();if(page==4&&!sceneEditing){static int lastMood=-2;int active=matchingMood();if(lastMood!=active){lastMood=active;drawMoods();}}}
+     if(drone!=bool(d)){drone=d;if(page==1)drawMode();}if(playing!=bool(p)){playing=p;drawPlay();}if(!linked){linked=true;drawHeader();}lastState=millis();Serial.printf("DIRECT %s\n",line);if(page==4&&!sceneEditing){static int lastMood=-2;int active=matchingMood();if(lastMood!=active){lastMood=active;drawMoods();}}}
    }
    if(!overflow&&!strncmp(line,"SCENE ",6)){
     int slot,status,exists,dirty;unsigned long revision;char hex[41];
@@ -153,25 +155,26 @@ void loop(){
   if(sceneEditing){if(!wasDown)keyboardTouch(x,y);}
   else if(!wasDown&&y>=25&&y<54&&x>=3&&x<318){int next=constrain((x-3)/63,0,4);if(next!=page){page=next;sceneConfirm=false;draw();}}
   else if(linked){
-   if(y>=208&&y<240&&!wasDown)Serial.printf("PLAY %d\n",playing?0:1);
+   if(y>=208&&y<240&&!wasDown)podLink.printf("PLAY %d\n",playing?0:1);
    else if(page==4&&!wasDown&&y>=60&&y<199){
     int column=x>=165?1:0,row=(y-60)/48,index=row*2+column;
     if(x>=10&&x<310&&(x-10)%155<145&&(y-60)%48<43&&index<int(moodCount)){
      snprintf(sceneName,sizeof(sceneName),"%s",moods[index].name);sceneLocalName=true;sceneConfirm=false;
-     Serial.printf("MOOD %d\n",index);
+     podLink.printf("MOOD %d\n",index);
     }
    }
    else if(page==3&&!wasDown){
     if(sceneConfirm){if(y>=145&&y<181){if(x>=166)sceneSendSave();else if(x>=14&&x<154){sceneConfirm=false;drawScenes();}}}
-    else if(y>=60&&y<104){if(x>=8&&x<53)Serial.printf("SCENE SELECT %d\n",(sceneSlot+31)%32);else if(x>=268&&x<=312)Serial.printf("SCENE SELECT %d\n",(sceneSlot+1)%32);}
-    else if(y>=118&&y<154){if(x>=14&&x<154&&sceneExists){sceneLocalName=false;Serial.printf("SCENE LOAD %d\n",sceneSlot);}else if(x>=166&&x<=306){if(sceneExists){sceneConfirm=true;drawScenes();}else sceneSendSave();}}
+    else if(y>=60&&y<104){if(x>=8&&x<53)podLink.printf("SCENE SELECT %d\n",(sceneSlot+31)%32);else if(x>=268&&x<=312)podLink.printf("SCENE SELECT %d\n",(sceneSlot+1)%32);}
+    else if(y>=118&&y<154){if(x>=14&&x<154&&sceneExists){sceneLocalName=false;podLink.printf("SCENE LOAD %d\n",sceneSlot);}else if(x>=166&&x<=306){if(sceneExists){sceneConfirm=true;drawScenes();}else sceneSendSave();}}
     else if(y>=164&&y<200&&x>=14&&x<=306){snprintf(editingName,sizeof(editingName),"%s",sceneName);sceneEditing=true;drawKeyboard();}
    }
-   else if(page==0&&y>=60&&y<104&&!wasDown){if(x>=8&&x<53)Serial.printf("MODEL %d\n",(model+23)%24);else if(x>=268&&x<=312)Serial.printf("MODEL %d\n",(model+1)%24);}
-   else if(page==1&&y>=60&&y<84&&!wasDown)Serial.printf("MODE %d\n",drone?0:1);
-   else if(page<3){int top=page==0?110:page==1?86:62,step=page==0?32:page==1?40:46;if(y>=top&&y<top+step*3&&y<205&&x>=8&&x<=312){int row=(y-top)/step;Serial.printf("SET %d %d\n",page*3+row,constrain((x-16)*1000/288,0,1000));}}
+   else if(page==0&&y>=60&&y<104&&!wasDown){if(x>=8&&x<53)podLink.printf("MODEL %d\n",(model+23)%24);else if(x>=268&&x<=312)podLink.printf("MODEL %d\n",(model+1)%24);}
+   else if(page==1&&y>=60&&y<84&&!wasDown)podLink.printf("MODE %d\n",drone?0:1);
+   else if(page<3){int top=page==0?110:page==1?86:62,step=page==0?32:page==1?40:46;if(y>=top&&y<top+step*3&&y<205&&x>=8&&x<=312){int row=(y-top)/step;podLink.printf("SET %d %d\n",page*3+row,constrain((x-16)*1000/288,0,1000));}}
   }wasDown=true;lastTouch=millis();}}
  if(!down)wasDown=false;
+ static uint32_t lastPing=0;if(millis()-lastPing>=1000){lastPing=millis();podLink.print("PING\n");}
  static int rearColor=-1;const uint16_t rearColors[3]={0x07FF,0xFC00,0xF81F};uint16_t color=linked?rearColors[model<8?2:model<16?0:1]:0;
  if(rearColor!=color){setRearLed(color);rearColor=color;}
  delay(3);

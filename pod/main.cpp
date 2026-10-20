@@ -4,6 +4,7 @@
 #include "stmlib/utils/buffer_allocator.h"
 #include "Effects/reverbsc.h"
 #include "fatfs.h"
+#include "command_line.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -21,6 +22,23 @@ volatile bool sceneLoading=false,resetScene=false;
 bool resetPickup=true;
 volatile unsigned rxwrite=0,rxread=0;
 char ring[512];
+UartHandler screenUart;
+alignas(32) uint8_t DMA_BUFFER_MEM_SECTION screenDma[256];
+volatile unsigned screenWrite=0,screenRead=0,screenErrors=0;
+char screenRing[1024];
+unsigned screenCommands=0,screenReports=0;
+bool screenReady=false;
+void ScreenReceive(uint8_t* data,size_t size,void*,UartHandler::Result result){
+ if(result!=UartHandler::Result::OK){screenErrors++;return;}
+ for(size_t i=0;i<size;i++){unsigned next=(screenWrite+1)%sizeof(screenRing);if(next==screenRead){screenErrors++;break;}screenRing[screenWrite]=data[i];__DMB();screenWrite=next;}
+}
+void InitScreen(){
+ UartHandler::Config config;config.periph=UartHandler::Config::Peripheral::UART_4;
+ config.pin_config.tx=seed::D12;config.pin_config.rx=seed::D11;
+ config.mode=UartHandler::Config::Mode::TX_RX;config.baudrate=115200;
+ screenReady=screenUart.Init(config)==UartHandler::Result::OK;
+ if(screenReady)screenReady=screenUart.DmaListenStart(screenDma,sizeof(screenDma),ScreenReceive,nullptr)==UartHandler::Result::OK;
+}
 uint32_t randomState=0x7487ac12;
 uint32_t RandomWord(){randomState^=randomState<<13;randomState^=randomState>>17;randomState^=randomState<<5;return randomState;}
 #include "scenes.h"
@@ -89,13 +107,16 @@ int main(){
  stmlib::BufferAllocator allocator(voiceMemory,sizeof(voiceMemory));voice.Init(&allocator);
  reverb.Init(48000);reverb.SetFeedback(.85f);reverb.SetLpFreq(9000);
  hw.seed.usb_handle.Init(UsbHandle::FS_INTERNAL);hw.seed.usb_handle.SetReceiveCallback(Receive,UsbHandle::FS_INTERNAL);
+ InitScreen();
  hw.StartAdc();hw.StartAudio(Audio);
  sceneInit();
- char line[96];unsigned used=0;bool overflow=false;uint32_t lastReport=0,lastControls=0;
+ CommandLine usbLine,screenLine;uint32_t lastReport=0,lastControls=0;
  float previous[2]={0,0},pickupReference[2]={0,0};bool caught[2]={false,false};int targetSeen[2]={values[1],values[2]};
  static char message[448];
  for(;;){
-  while(rxread!=rxwrite){__DMB();char c=ring[rxread];rxread=(rxread+1)%sizeof(ring);if(c=='\n'){if(!overflow){line[used]=0;Command(line);}used=0;overflow=false;}else if(c!='\r'){if(used<sizeof(line)-1)line[used++]=c;else overflow=true;}}
+  while(rxread!=rxwrite){__DMB();char c=ring[rxread];rxread=(rxread+1)%sizeof(ring);usbLine.Feed(c,Command);}
+  while(screenRead!=screenWrite){__DMB();char c=screenRing[screenRead];screenRead=(screenRead+1)%sizeof(screenRing);screenLine.Feed(c,[](char* line){screenCommands++;if(strcmp(line,"PING"))Command(line);});}
+  if(screenReady&&!screenUart.IsListening())screenUart.DmaListenStart(screenDma,sizeof(screenDma),ScreenReceive,nullptr);
   uint32_t now=System::GetNow();
   if(now-lastControls>=5){lastControls=now;hw.ProcessAllControls();
    for(int i=0;i<2;i++){int p=i+1;float v=i?hw.knob2.Process():hw.knob1.Process(),target=values[p]/1000.f;
@@ -113,6 +134,8 @@ int main(){
    int n=snprintf(message,sizeof(message),"PSTATE %d %d %d %d %d %d %d %d %d %d %d %d %d %u %u\n",model,values[0],values[1],values[2],values[3],values[4],values[5],values[6],values[7],values[8],playing?1:0,drone?1:0,currentNote,cpuPeak,overruns);
    char sceneHex[41];SceneNameToHex(sceneCached.name,sceneHex);
    n+=snprintf(message+n,sizeof(message)-n,"SCENE %d %lu %d %d %d %s\n",sceneSlot,static_cast<unsigned long>(sceneRevision),sceneStatus,sceneExists?1:0,sceneDirty?1:0,sceneHex);
+   if(screenReady){if(screenUart.BlockingTransmit(reinterpret_cast<uint8_t*>(message),n,30)==UartHandler::Result::OK)screenReports++;else screenErrors++;}
+   n+=snprintf(message+n,sizeof(message)-n,"WIRE %u %u %u\n",screenCommands,screenReports,screenErrors);
    hw.seed.usb_handle.TransmitInternal(reinterpret_cast<uint8_t*>(message),n);
   }System::Delay(1);
  }

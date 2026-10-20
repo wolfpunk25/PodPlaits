@@ -1,0 +1,12 @@
+{
+  "bidirectional": true,
+  "screen_saw_model_change": true,
+  "wire_counters": [
+    43,
+    428,
+    0
+  ],
+  "audio_peak_percent": 36,
+  "audio_missed_blocks": 0,
+  "original_settings_restored_paused": true
+}

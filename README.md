@@ -1,12 +1,12 @@
 # PodPlaits — Plaits for Daisy Pod + yellow touchscreen
 
-A Pod adaptation of the **Plaits DSP core from CyberDuck79/Mutables_Daisies**, using the existing ESP32 touchscreen and Mac USB relay. This instrument pairs a Daisy Pod with an ESP32 yellow touchscreen, using a Mac as the USB relay.
+A Pod adaptation of the **Plaits DSP core from CyberDuck79/Mutables_Daisies**, using an ESP32 touchscreen and direct serial connection. This instrument pairs a Daisy Pod with an ESP32 yellow touchscreen, using a direct serial connection between the boards.
 
 The upstream application targets Daisy Patch, with its own screen, CV inputs, four audio inputs/outputs, presets and custom data loading. This adaptation replaces that hardware/UI layer. It does not claim to reproduce all Patch application features.
 
 ## Try it
 
-Connect headphones or powered speakers to the Pod’s audio output, starting with low volume. Connect both boards to the Mac and open **Start.command**. Wait for POD CONNECTED, then tap START SOUND.
+Connect headphones or powered speakers to the Pod’s audio output, starting with low volume. Power the wired Pod and screen from the shared supply. Wait for POD CONNECTED, then tap START SOUND. The current firmware communicates directly and needs no Mac or relay. Wiring details are in [BUILD.md](BUILD.md).
 
 - **Sound:** use < / > to choose among 24 engines; adjust Harmonics, Timbre and Morph.
 - **Play:** choose AUTO NOTES or DRONE. Auto Notes generates a gentle random walk in a minor pentatonic scale. Adjust root note, decay and note rate. Drone holds the root note; percussive engines may respond differently in drone mode.
@@ -23,7 +23,7 @@ Plaits OUT and AUX are routed to the Pod’s left and right outputs, then throug
 
 ## Included and excluded
 
-All 24 factory engines are included, including the three built-in 6-operator FM banks. This version runs one Plaits Voice (some engines have internal multi-voice behaviour), adds autonomous notes/drift and reverb, and supplies USB touchscreen controls.
+All 24 factory engines are included, including the three built-in 6-operator FM banks. This version runs one Plaits Voice (some engines have internal multi-voice behaviour), adds autonomous notes/drift and reverb, and supplies direct serial touchscreen controls.
 
 It does not currently load the WAV files on your SD card, custom FM/wavetable/wave-terrain data, Patch presets, audio-rate input modulation, external CV, or the Patch port’s extra polyphonic voices. It writes only its scene files under `/plaits/scenes/`; WAV samples in the root are left untouched. Clouds, Rings and the other planned modules are not present in the referenced repository’s finished ports.
 
@@ -37,7 +37,7 @@ The Pod accepts a private USB `UPDATE` command to enter the Daisy programmer ind
 
 ## Sources and rebuilding
 
-`pod/` contains the adaptation, Makefile and user-data provider stub. `vendor/eurorack/` includes the Plaits and stmlib sources/headers used. `TouchPanel/` contains the ESP32 sketch and TFT setup snapshot. `bridge.py` uses standard Python 3 only.
+`pod/` contains the adaptation, Makefile and user-data provider stub. `vendor/eurorack/` includes the Plaits and stmlib sources/headers used. `TouchPanel/` contains the ESP32 sketch and TFT setup snapshot. `bridge.py` and `Start.command` are retained for the earlier USB-relay firmware; do not run them for this direct-link version. The Pod’s USB port supports diagnostics and updates.
 
 The Makefile expects built libDaisy and DaisySP/DaisySP-LGPL dependencies in `deps/libDaisy` and `deps/DaisySP`. LIBDAISY_DIR, DAISYSP_DIR and GCC_PATH can be overridden. See [BUILD.md](BUILD.md) for the toolchain and display setup. The Plaits `.cc` source list follows the upstream project’s Makefile, with PLAITS_DAISY enabled.
 
@@ -89,3 +89,9 @@ To keep a variation, open SCENES, choose a slot and SAVE. The mood’s name is s
 Pod knobs wait for movement and pickup before taking over after loading a mood or scene, so a stationary knob cannot immediately nudge a recalled setting.
 
 The preset table in `TouchPanel/Moods.h` is shared by Pod and display builds. Native tests check all preset bounds, paused loading, rejection of invalid indices and absence of SD writes. The actual audio renderer produced finite, bounded, non-silent output for every mood in a 12-second sanitized test, and pause fade passed. Physical checks are recorded in `moods-hardware-check.json`. Subjective sound balance and physical touchscreen operation require listening and touch checks.
+
+## Direct screen connection
+
+The Pod uses UART4: SDA (Seed D12) transmits to screen IO35; SCL (Seed D11) receives from screen IO27. Both boards share ground and a regulated 5V supply. This leaves the Seed USB socket available for firmware updates and the Pod’s second USB socket unused. The display’s UART-labelled connector supplies 5V/GND only; its TXD/RXD pins are not used. The direct link instead uses IO35 and IO27 on the expansion sockets, preserving the rear RGB indicator.
+
+Direct-link verification with both boards connected by USB for observation, and no relay process running, confirmed traffic in both directions, screen updates following engine changes, zero serial errors, and zero missed audio blocks during a muted benchmark. Previous sound settings were restored paused. See `direct-hardware-check.json`. A physical battery-only interaction check is separate from these diagnostics.
