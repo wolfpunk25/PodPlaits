@@ -27,6 +27,8 @@ def valid_source(line):
     return slot<32 and revision<=0xffffffff and status<8 and exists in (0,1) and dirty in (0,1) and valid_name_hex(fields[6])
 
 def valid_command(line):
+    m=re.fullmatch(rb"MOOD ([0-5])",line)
+    if m:return True
     m=re.fullmatch(rb"SCENE (?:SELECT|LOAD) (\d{1,2})",line)
     if m:return int(m[1])<32
     m=re.fullmatch(rb"SCENE SAVE (\d{1,2}) ((?:[0-9A-Fa-f]{2}){1,20})",line)

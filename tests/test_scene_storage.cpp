@@ -2,7 +2,7 @@
 #include <cstdio>
 #include <cstdint>
 int model=14,values[9]={500,500,500,333,650,260,250,150,400};
-bool drone=false,playing=true,benchmark=false,sceneLoading=false,resetScene=false;
+bool resetPickup=false,drone=false,playing=true,benchmark=false,sceneLoading=false,resetScene=false;
 struct System{static void Delay(int){}};
 struct Reverb{void Init(int){}void SetFeedback(float){}void SetLpFreq(int){}}reverb;
 void __DMB(){}
@@ -23,5 +23,13 @@ int main(){
  sceneLoad(0);assert(!playing&&model==7);sceneUpdateDirty();assert(!sceneDirty);
  sceneSelect(31);assert(!sceneExists&&sceneStatus==6);model=23;sceneLoad(31);assert(model==23);
  sceneMounted=false;sceneSave(1,"4E4F205344");assert(sceneStatus==3);
+ auto before=disk;
+ for(unsigned n=0;n<moodCount;n++){
+  playing=true;benchmark=true;moodLoad(n);assert(!playing&&!benchmark&&model==moods[n].model&&drone==moods[n].drone);
+  for(unsigned i=0;i<9;i++)assert(values[i]==moods[n].values[i]&&values[i]<=1000);
+  assert(SceneNameValid(moods[n].name));assert(disk==before);
+ }
+ int last=model;moodLoad(-1);moodLoad(moodCount);assert(model==last);
+ puts("PASS: all moods apply valid settings paused, without SD writes; invalid mood rejected");
  puts("PASS: actual storage save/load, overwrite backup, failed write, failed rename rollback, corrupt-file and temp recovery, empty slot and no-card handling");
 }

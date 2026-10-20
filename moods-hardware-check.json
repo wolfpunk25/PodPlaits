@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Warm Drift",
+    "peak_percent": 32,
+    "missed_blocks": 0
+  },
+  {
+    "name": "Glass Garden",
+    "peak_percent": 37,
+    "missed_blocks": 0
+  },
+  {
+    "name": "Night Tide",
+    "peak_percent": 31,
+    "missed_blocks": 0
+  },
+  {
+    "name": "Floating Choir",
+    "peak_percent": 33,
+    "missed_blocks": 0
+  },
+  {
+    "name": "Soft Sparks",
+    "peak_percent": 35,
+    "missed_blocks": 0
+  },
+  {
+    "name": "Deep Space",
+    "peak_percent": 32,
+    "missed_blocks": 0
+  }
+]

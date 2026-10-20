@@ -18,6 +18,7 @@ volatile bool playing=false,drone=false,benchmark=false;
 volatile int currentNote=48;
 volatile unsigned cpuPeak=0,overruns=0;
 volatile bool sceneLoading=false,resetScene=false;
+bool resetPickup=true;
 volatile unsigned rxwrite=0,rxread=0;
 char ring[512];
 uint32_t randomState=0x7487ac12;
@@ -70,6 +71,7 @@ void Command(char* line){
  if(!strcmp(line,"BENCH 1")){benchmark=true;cpuPeak=overruns=0;return;}
  if(!strcmp(line,"BENCH 0")){benchmark=false;return;}
  int index,value;char hex[41];
+ if(sscanf(line,"MOOD %d",&index)==1){moodLoad(index);return;}
  if(sscanf(line,"SCENE SELECT %d",&index)==1){sceneSelect(index);return;}
  if(sscanf(line,"SCENE SAVE %d %40s",&index,hex)==2){sceneSave(index,hex);return;}
  if(sscanf(line,"SCENE LOAD %d",&index)==1){sceneLoad(index);return;}
@@ -90,17 +92,18 @@ int main(){
  hw.StartAdc();hw.StartAudio(Audio);
  sceneInit();
  char line[96];unsigned used=0;bool overflow=false;uint32_t lastReport=0,lastControls=0;
- float previous[2]={0,0};bool caught[2]={false,false};int targetSeen[2]={values[1],values[2]};
+ float previous[2]={0,0},pickupReference[2]={0,0};bool caught[2]={false,false};int targetSeen[2]={values[1],values[2]};
  static char message[448];
  for(;;){
   while(rxread!=rxwrite){__DMB();char c=ring[rxread];rxread=(rxread+1)%sizeof(ring);if(c=='\n'){if(!overflow){line[used]=0;Command(line);}used=0;overflow=false;}else if(c!='\r'){if(used<sizeof(line)-1)line[used++]=c;else overflow=true;}}
   uint32_t now=System::GetNow();
   if(now-lastControls>=5){lastControls=now;hw.ProcessAllControls();
    for(int i=0;i<2;i++){int p=i+1;float v=i?hw.knob2.Process():hw.knob1.Process(),target=values[p]/1000.f;
-    if(values[p]!=targetSeen[i])caught[i]=false;
-    if(fabsf(v-target)<.025f||(v-target)*(previous[i]-target)<0)caught[i]=true;
+    if(resetPickup||values[p]!=targetSeen[i]){caught[i]=false;pickupReference[i]=v;previous[i]=v;}
+    if(fabsf(v-pickupReference[i])>.008f&&(fabsf(v-target)<.025f||(v-target)*(previous[i]-target)<0))caught[i]=true;
     if(caught[i]&&fabsf(v-target)>.004f)values[p]=int(v*1000);
     targetSeen[i]=values[p];previous[i]=v;}
+   resetPickup=false;
    int increment=hw.encoder.Increment();if(increment){model=(model+increment+24)%24;cpuPeak=overruns=0;}
    if(hw.button1.RisingEdge())playing=!playing;if(hw.button2.RisingEdge())drone=!drone;
    // LEDs stay off; software PWM at the control-loop rate causes visible flicker.

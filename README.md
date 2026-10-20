@@ -11,6 +11,7 @@ Connect headphones or powered speakers to the Pod’s audio output, starting wit
 - **Sound:** use < / > to choose among 24 engines; adjust Harmonics, Timbre and Morph.
 - **Play:** choose AUTO NOTES or DRONE. Auto Notes generates a gentle random walk in a minor pentatonic scale. Adjust root note, decay and note rate. Drone holds the root note; percussive engines may respond differently in drone mode.
 - **Space:** reverb, slow drift of the sound parameters, and output volume.
+- **Moods:** tap a named starting sound to set the engine, mode and all nine controls together. Loading leaves playback paused. Tweak it on the other tabs, then save your version in Scenes.
 - **Scenes:** 32 named slots saved on the Pod’s SD card. Use the arrows to select a slot, EDIT NAME to name it, then SAVE. Existing scenes ask for REPLACE confirmation. LOAD recalls the scene with playback paused; tap START SOUND when ready.
 - **Start/Pause:** fades the complete output. Starts paused after power-on.
 
@@ -67,3 +68,24 @@ Loading fades out, restores the settings and clears the reverb tail, leaving pla
 Scene files are fixed 64-byte, versioned records with CRC32 checksums. Files are named `scene01.scn` through `scene32.scn` inside `/plaits/scenes/`. Saving writes and syncs a temporary file before replacing the scene. Overwrites retain the previous successful file as `.bak`; reads can recover a valid backup or completed temporary file when the main file is unavailable or invalid. These measures reduce interrupted-save risk, but do not make FAT storage immune to power loss. Insert the SD card before powering on; an unavailable card is reported on the Scenes page.
 
 Scenes validation: both firmware builds compiled and were installed, with display hash verification. Sanitized native tests exercised scene encoding, bounds and corruption rejection, and the actual storage logic with injected write/rename failures and backup/temp recovery. Relay integration tests covered scene commands and metadata. On the Pod, FIRST SOUND saved, marked changed after edits, restored all saved controls while paused, overwrote with a backup, and survived a software restart and reload. Saving during a muted audio benchmark produced zero missed blocks. Touchscreen naming and overwrite confirmation remain to be checked by touch on the physical display.
+
+## Mood presets
+
+Six built-in starting points are available on the MOODS tab, even without an SD card:
+
+| Mood | Character | Engine | Mode |
+| --- | --- | --- | --- |
+| Warm Drift | Slow, rounded chords | Chords | Auto Notes |
+| Glass Garden | Gentle ringing notes | Modal resonator | Auto Notes |
+| Night Tide | Dark, moving waves | Virtual analog | Drone |
+| Floating Choir | Airy, changing vowels | Granular formants | Drone |
+| Soft Sparks | Sparse, quiet plucked strings | String resonator | Auto Notes |
+| Deep Space | Low, shifting harmonics | Harmonic oscillator | Drone |
+
+Selecting a mood fades out, clears the old reverb tail and sets the engine, mode, root note, pacing, sound controls, reverb, drift and volume. It stays paused until START SOUND. The selected mood has an outline while its controls match exactly; edits remove that outline. These are starting settings rather than promises of identical loudness or a particular emotional response.
+
+To keep a variation, open SCENES, choose a slot and SAVE. The mood’s name is suggested in the currently selected scene slot; choosing another slot adopts that slot’s existing/default name. Loading a mood never writes to the SD card or replaces a saved scene.
+
+Pod knobs wait for movement and pickup before taking over after loading a mood or scene, so a stationary knob cannot immediately nudge a recalled setting.
+
+The preset table in `TouchPanel/Moods.h` is shared by Pod and display builds. Native tests check all preset bounds, paused loading, rejection of invalid indices and absence of SD writes. The actual audio renderer produced finite, bounded, non-silent output for every mood in a 12-second sanitized test, and pause fade passed. Physical checks are recorded in `moods-hardware-check.json`. Subjective sound balance and physical touchscreen operation require listening and touch checks.

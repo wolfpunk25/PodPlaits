@@ -1,6 +1,7 @@
 #pragma once
 #include "fatfs.h"
 #include "scene_codec.h"
+#include "../TouchPanel/Moods.h"
 // Runs in the foreground. FIL contains a DMA sector buffer and must not live on the DTCM stack.
 SdmmcHandler sceneSd;
 FatFSInterface sceneFs;
@@ -57,10 +58,20 @@ void sceneSave(int slot,const char* hex){
  if(ok){sceneCached=data;sceneExists=true;sceneDirty=false;sceneStatus=1;}else sceneStatus=5;
  sceneRevision++;
 }
+void applySound(const SceneData& data){
+ playing=false;benchmark=false;System::Delay(350);sceneLoading=true;System::Delay(3);
+ model=data.model;drone=data.drone;for(unsigned i=0;i<9;i++)values[i]=data.values[i];
+ reverb.Init(48000);reverb.SetFeedback(.85f);reverb.SetLpFreq(9000);
+ resetPickup=true;resetScene=true;__DMB();sceneLoading=false;
+}
 void sceneLoad(int slot){
  if(slot<0||slot>=32)return;sceneSelect(slot);if(!sceneExists)return;
- playing=false;benchmark=false;System::Delay(350);sceneLoading=true;System::Delay(3);
- model=sceneCached.model;drone=sceneCached.drone;for(unsigned i=0;i<9;i++)values[i]=sceneCached.values[i];
- reverb.Init(48000);reverb.SetFeedback(.85f);reverb.SetLpFreq(9000);
- resetScene=true;__DMB();sceneLoading=false;sceneDirty=false;sceneStatus=2;sceneRevision++;
+ applySound(sceneCached);sceneDirty=false;sceneStatus=2;sceneRevision++;
+}
+
+void moodLoad(int index){
+ if(index<0||index>=int(moodCount))return;
+ const MoodPreset& mood=moods[index];SceneData data;data.model=mood.model;data.drone=mood.drone;
+ for(unsigned i=0;i<9;i++)data.values[i]=mood.values[i];
+ applySound(data);sceneUpdateDirty();
 }

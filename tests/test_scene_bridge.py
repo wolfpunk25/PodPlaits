@@ -7,7 +7,7 @@ assert valid_command(b'MODEL 23') and not valid_command(b'MODEL 24')
 assert valid_command(b'SET 8 1000') and not valid_command(b'SET 9 500')
 assert not valid_command(b'BOOT') and not valid_command(b'UPDATE')
 assert valid_source(b'SCENE 31 12 1 1 0 464952535420534F554E44')
-for invalid in [b'SCENE SELECT 32',b'SCENE LOAD -1',b'SCENE SAVE 0 00',b'SCENE SAVE 0 2020',b'SCENE SAVE 0 GG',b'RESTART']:
+for invalid in [b'SCENE SELECT 32',b'SCENE LOAD -1',b'SCENE SAVE 0 00',b'SCENE SAVE 0 2020',b'SCENE SAVE 0 GG',b'RESTART',b'MOOD 6',b'MOOD -1',b'MOOD 0 EXTRA']:
  assert not valid_command(invalid),invalid
 pod,ps=pty.openpty();display,ds=pty.openpty()
 p=subprocess.Popen([sys.executable,'-u','bridge.py','--pod',os.ttyname(ps),'--display',os.ttyname(ds)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
@@ -19,7 +19,7 @@ def receive(fd):
  raise AssertionError('No forwarded message')
 try:
  time.sleep(.25);os.write(pod,state[:20]);os.write(pod,state[20:]);assert receive(display)==state
- for command in [b'MODEL 23\n',b'SET 8 250\n',b'MODE 1\n',b'PLAY 1\n',b'SCENE SELECT 31\n',b'SCENE LOAD 0\n',b'SCENE SAVE 0 464952535420534F554E44\n']:
+ for command in [b'MOOD 0\n',b'MOOD 5\n',b'MODEL 23\n',b'SET 8 250\n',b'MODE 1\n',b'PLAY 1\n',b'SCENE SELECT 31\n',b'SCENE LOAD 0\n',b'SCENE SAVE 0 464952535420534F554E44\n']:
   os.write(display,command);assert receive(pod)==command
  os.write(display,b'MODEL 24\nBOOT\n');assert not select.select([pod],[],[],.3)[0]
  metadata=b'SCENE 0 12 1 1 0 464952535420534F554E44\n';os.write(pod,metadata);assert receive(display)==metadata

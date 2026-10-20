@@ -2,10 +2,11 @@
 #include <TFT_eSPI.h>
 #include <XPT2046_Touchscreen.h>
 #include <Preferences.h>
+#include "Moods.h"
 TFT_eSPI tft;SPIClass touchSpi(VSPI);XPT2046_Touchscreen touch(33,36);Preferences preferences;
 float ax=0,bx=0,cx=0,ay=0,by=0,cy=0;
 const uint16_t bg=0x0000,panel=0x18E3,mint=0x7DB7,ink=0xBDF7,dim=0x7BEF;
-const uint16_t accents[4]={0x4DF6,0xFCAA,0xB37F,0x8E51};
+const uint16_t accents[5]={0x4DF6,0xFCAA,0xB37F,0x8E51,0xFC8D};
 const uint16_t sliderColors[9]={0x4DF6,0xFC8D,0xB37F,0xFCAA,0xFBAE,0x8E51,0xB37F,0x4DF6,0x7DB7};
 int values[9]={500,500,500,333,650,260,250,150,400};int model=14,page=0;
 bool playing=false,drone=false,linked=false;uint32_t lastState=0,lastTouch=0;
@@ -62,6 +63,13 @@ void drawScenes(){
  label(status,16,106,1,sceneStatus>=3&&sceneStatus<=5?accents[1]:dim);
  sceneButton(14,118,140,"LOAD",sceneExists?accents[3]:dim);sceneButton(166,118,140,"SAVE",accents[3]);sceneButton(14,164,292,"EDIT NAME",accents[3]);
 }
+int matchingMood(){
+ for(unsigned m=0;m<moodCount;m++){bool match=model==moods[m].model&&drone==moods[m].drone;for(unsigned i=0;i<9;i++)if(values[i]!=moods[m].values[i])match=false;if(match)return m;}return -1;
+}
+void drawMoods(){
+ if(sceneEditing)return;tft.fillRect(0,56,320,149,bg);int active=matchingMood();
+ for(unsigned i=0;i<moodCount;i++){int x=10+(i%2)*155,y=60+(i/2)*48;uint16_t color=accents[4];tft.fillRoundRect(x,y,145,43,5,panel);if(int(i)==active)tft.drawRoundRect(x,y,145,43,5,color);tft.setTextColor(color,panel);tft.drawString(moods[i].name,x+7,y+5,2);tft.setTextColor(ink,panel);tft.drawString(moods[i].description,x+7,y+28,1);}
+}
 void drawKeyboard(){
  tft.fillScreen(bg);label("SCENE NAME (20 CHARACTERS)",14,3,1,dim);label(editingName,14,18,2,accents[3]);tft.fillRoundRect(250,8,56,28,4,panel);tft.setTextColor(accents[3],panel);tft.drawCentreString("CLEAR",278,18,1);
  const char* rows[]={"1234567890","QWERTYUIOP","ASDFGHJKL","ZXCVBNM-_"};
@@ -78,9 +86,9 @@ void keyboardTouch(int x,int y){
 }
 void draw(){
  if(sceneEditing){drawKeyboard();return;}
- tft.fillScreen(bg);drawHeader();const char* tabs[]={"SOUND","PLAY","SPACE","SCENES"};
- for(int i=0;i<4;i++){tft.fillRoundRect(5+i*79,25,73,28,5,i==page?panel:bg);if(i==page)tft.drawRoundRect(5+i*79,25,73,28,5,accents[i]);else tft.drawFastHLine(12+i*79,51,59,accents[i]);tft.setTextColor(accents[i],i==page?panel:bg);tft.drawCentreString(tabs[i],41+i*79,31,2);}
- if(page==3)drawScenes();else{if(page==0)drawModel();if(page==1)drawMode();for(int row=0;row<3;row++)drawRow(page*3+row,rowY(row));}drawPlay();
+ tft.fillScreen(bg);drawHeader();const char* tabs[]={"SOUND","PLAY","SPACE","SCENES","MOODS"};
+ for(int i=0;i<5;i++){tft.fillRoundRect(3+i*63,25,60,28,5,i==page?panel:bg);if(i==page)tft.drawRoundRect(3+i*63,25,60,28,5,accents[i]);else tft.drawFastHLine(8+i*63,51,50,accents[i]);tft.setTextColor(accents[i],i==page?panel:bg);tft.drawCentreString(tabs[i],33+i*63,31,2);}
+ if(page==4)drawMoods();else if(page==3)drawScenes();else{if(page==0)drawModel();if(page==1)drawMode();for(int row=0;row<3;row++)drawRow(page*3+row,rowY(row));}drawPlay();
 }
 void calibrate() {
  float rx[3],ry[3];const float sx[3]={28,292,160},sy[3]={28,28,212};
@@ -118,7 +126,7 @@ void loop(){
    if(!overflow&&sscanf(line,"PSTATE %d %d %d %d %d %d %d %d %d %d %d %d %d %u %u",&m,&v[0],&v[1],&v[2],&v[3],&v[4],&v[5],&v[6],&v[7],&v[8],&p,&d,&n,&peak,&missed)==15){
     bool valid=m>=0&&m<24&&(p==0||p==1)&&(d==0||d==1);for(int i=0;i<9;i++)if(v[i]<0||v[i]>1000)valid=false;
     if(valid){if(model!=m){model=m;if(page==0)drawModel();}for(int i=0;i<9;i++)if(values[i]!=v[i]){values[i]=v[i];if(i/3==page)drawRow(i,rowY(i%3));}
-     if(drone!=bool(d)){drone=d;if(page==1)drawMode();}if(playing!=bool(p)){playing=p;drawPlay();}if(!linked){linked=true;drawHeader();}lastState=millis();}
+     if(drone!=bool(d)){drone=d;if(page==1)drawMode();}if(playing!=bool(p)){playing=p;drawPlay();}if(!linked){linked=true;drawHeader();}lastState=millis();if(page==4&&!sceneEditing){static int lastMood=-2;int active=matchingMood();if(lastMood!=active){lastMood=active;drawMoods();}}}
    }
    if(!overflow&&!strncmp(line,"SCENE ",6)){
     int slot,status,exists,dirty;unsigned long revision;char hex[41];
@@ -143,9 +151,16 @@ void loop(){
  if(linked&&millis()-lastState>2000){linked=false;drawHeader();}
  bool down=touch.touched();if(down&&millis()-lastTouch>45){auto p=touch.getPoint();if(p.z>200){int x=lroundf(ax*p.x+bx*p.y+cx),y=lroundf(ay*p.x+by*p.y+cy);
   if(sceneEditing){if(!wasDown)keyboardTouch(x,y);}
-  else if(!wasDown&&y>=25&&y<54&&x>=5&&x<320){int next=constrain((x-5)/79,0,3);if(next!=page){page=next;sceneConfirm=false;draw();}}
+  else if(!wasDown&&y>=25&&y<54&&x>=3&&x<318){int next=constrain((x-3)/63,0,4);if(next!=page){page=next;sceneConfirm=false;draw();}}
   else if(linked){
    if(y>=208&&y<240&&!wasDown)Serial.printf("PLAY %d\n",playing?0:1);
+   else if(page==4&&!wasDown&&y>=60&&y<199){
+    int column=x>=165?1:0,row=(y-60)/48,index=row*2+column;
+    if(x>=10&&x<310&&(x-10)%155<145&&(y-60)%48<43&&index<int(moodCount)){
+     snprintf(sceneName,sizeof(sceneName),"%s",moods[index].name);sceneLocalName=true;sceneConfirm=false;
+     Serial.printf("MOOD %d\n",index);
+    }
+   }
    else if(page==3&&!wasDown){
     if(sceneConfirm){if(y>=145&&y<181){if(x>=166)sceneSendSave();else if(x>=14&&x<154){sceneConfirm=false;drawScenes();}}}
     else if(y>=60&&y<104){if(x>=8&&x<53)Serial.printf("SCENE SELECT %d\n",(sceneSlot+31)%32);else if(x>=268&&x<=312)Serial.printf("SCENE SELECT %d\n",(sceneSlot+1)%32);}
