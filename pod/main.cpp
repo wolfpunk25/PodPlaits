@@ -5,6 +5,7 @@
 #include "Effects/reverbsc.h"
 #include "fatfs.h"
 #include "command_line.h"
+#include "control_feedback.h"
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -28,6 +29,14 @@ volatile unsigned screenWrite=0,screenRead=0,screenErrors=0;
 char screenRing[1024];
 unsigned screenCommands=0,screenReports=0;
 bool screenReady=false;
+// Physical controls report only intentional movement; no popup on remote changes.
+ControlFeedback feedback;
+void ControlEvent(int kind,int value,int physical=0,int picked=1){feedback.Set(kind,value,physical,picked,System::GetNow());}
+GPIO feedbackLeds[6];
+void InitFeedbackLeds(){const Pin pins[]={seed::D20,seed::D19,seed::D18,seed::D17,seed::D24,seed::D23};for(int i=0;i<6;i++){feedbackLeds[i].Init(pins[i],GPIO::Mode::OUTPUT);feedbackLeds[i].Write(true);}}
+void UpdateFeedbackLeds(){// Common-anode channels use static GPIO levels: no PWM flicker.
+ const bool on[]={!playing,playing,false,drone,drone,!drone};for(int i=0;i<6;i++)feedbackLeds[i].Write(!on[i]);}
+
 void ScreenReceive(uint8_t* data,size_t size,void*,UartHandler::Result result){
  if(result!=UartHandler::Result::OK){screenErrors++;return;}
  for(size_t i=0;i<size;i++){unsigned next=(screenWrite+1)%sizeof(screenRing);if(next==screenRead){screenErrors++;break;}screenRing[screenWrite]=data[i];__DMB();screenWrite=next;}
@@ -103,6 +112,7 @@ void Command(char* line){
 int main(){
  hw.Init();
  hw.led1.Set(0,0,0);hw.led2.Set(0,0,0);hw.UpdateLeds();hw.seed.SetLed(false);
+ InitFeedbackLeds();UpdateFeedbackLeds();
  hw.SetAudioBlockSize(48);hw.SetAudioSampleRate(SaiHandle::Config::SampleRate::SAI_48KHZ);
  stmlib::BufferAllocator allocator(voiceMemory,sizeof(voiceMemory));voice.Init(&allocator);
  reverb.Init(48000);reverb.SetFeedback(.85f);reverb.SetLpFreq(9000);
@@ -112,6 +122,8 @@ int main(){
  sceneInit();
  CommandLine usbLine,screenLine;uint32_t lastReport=0,lastControls=0;
  float previous[2]={0,0},pickupReference[2]={0,0};bool caught[2]={false,false};int targetSeen[2]={values[1],values[2]};
+ float popupKnob[2]={hw.knob1.Value(),hw.knob2.Value()};
+ unsigned lastFeedbackSent=0xffffffff;
  static char message[448];
  for(;;){
   while(rxread!=rxwrite){__DMB();char c=ring[rxread];rxread=(rxread+1)%sizeof(ring);usbLine.Feed(c,Command);}
@@ -123,17 +135,22 @@ int main(){
     if(resetPickup||values[p]!=targetSeen[i]){caught[i]=false;pickupReference[i]=v;previous[i]=v;}
     if(fabsf(v-pickupReference[i])>.008f&&(fabsf(v-target)<.025f||(v-target)*(previous[i]-target)<0))caught[i]=true;
     if(caught[i]&&fabsf(v-target)>.004f)values[p]=int(v*1000);
+    if(now>400&&fabsf(v-popupKnob[i])>.008f){popupKnob[i]=v;ControlEvent(i+1,values[p],int(v*1000),caught[i]?1:0);}
     targetSeen[i]=values[p];previous[i]=v;}
    resetPickup=false;
-   int increment=hw.encoder.Increment();if(increment){model=(model+increment+24)%24;cpuPeak=overruns=0;}
-   if(hw.button1.RisingEdge())playing=!playing;if(hw.button2.RisingEdge())drone=!drone;
-   // LEDs stay off; software PWM at the control-loop rate causes visible flicker.
+   int increment=hw.encoder.Increment();if(increment){model=(model+increment+24)%24;cpuPeak=overruns=0;ControlEvent(3,model);}
+   if(hw.button1.RisingEdge()){playing=!playing;ControlEvent(4,playing?1:0);}
+   if(hw.button2.RisingEdge()){drone=!drone;ControlEvent(5,drone?1:0);}
+   if(hw.encoder.RisingEdge())ControlEvent(6,model);
+   feedback.Tick(now,hw.button1.FallingEdge(),hw.button2.FallingEdge(),hw.encoder.FallingEdge());
+   UpdateFeedbackLeds();
   }
   sceneUpdateDirty();
-  if(now-lastReport>=100){lastReport=now;
+  if(now-lastReport>=100||(feedback.revision!=lastFeedbackSent&&now-lastReport>=30)){lastReport=now;lastFeedbackSent=feedback.revision;
    int n=snprintf(message,sizeof(message),"PSTATE %d %d %d %d %d %d %d %d %d %d %d %d %d %u %u\n",model,values[0],values[1],values[2],values[3],values[4],values[5],values[6],values[7],values[8],playing?1:0,drone?1:0,currentNote,cpuPeak,overruns);
    char sceneHex[41];SceneNameToHex(sceneCached.name,sceneHex);
    n+=snprintf(message+n,sizeof(message)-n,"SCENE %d %lu %d %d %d %s\n",sceneSlot,static_cast<unsigned long>(sceneRevision),sceneStatus,sceneExists?1:0,sceneDirty?1:0,sceneHex);
+   n+=snprintf(message+n,sizeof(message)-n,"CONTROL %u %d %d %d %d\n",feedback.revision,feedback.kind,feedback.value,feedback.physical,feedback.picked);
    if(screenReady){if(screenUart.BlockingTransmit(reinterpret_cast<uint8_t*>(message),n,30)==UartHandler::Result::OK)screenReports++;else screenErrors++;}
    n+=snprintf(message+n,sizeof(message)-n,"WIRE %u %u %u\n",screenCommands,screenReports,screenErrors);
    hw.seed.usb_handle.TransmitInternal(reinterpret_cast<uint8_t*>(message),n);

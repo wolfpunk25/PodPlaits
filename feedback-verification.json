@@ -1,0 +1,18 @@
+{
+  "POD PSTATE": "PSTATE 14 280 260 380 333 850 95 600 230 400 0 0 48 35 0",
+  "POD CONTROL": "CONTROL 3 0 0 0 1",
+  "POD WIRE": "WIRE 24 236 0",
+  "SCREEN FEEDBACK": "FEEDBACK 0 0 0 0 1",
+  "SCREEN DIRECT": "DIRECT PSTATE 14 280 260 380 333 850 95 600 230 400 0 0 48 35 0",
+  "observed_control_kinds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "control_reports_received": 133,
+  "physical_visual_confirmation": "User confirmed both LEDs and all button, knob and encoder popups work, including dismissal."
+}

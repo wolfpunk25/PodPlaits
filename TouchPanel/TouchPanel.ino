@@ -11,6 +11,9 @@ const uint16_t bg=0x0000,panel=0x18E3,mint=0x7DB7,ink=0xBDF7,dim=0x7BEF;
 const uint16_t accents[5]={0x4DF6,0xFCAA,0xB37F,0x8E51,0xFC8D};
 const uint16_t sliderColors[9]={0x4DF6,0xFC8D,0xB37F,0xFCAA,0xFBAE,0x8E51,0xB37F,0x4DF6,0x7DB7};
 int values[9]={500,500,500,333,650,260,250,150,400};int model=14,page=0;
+bool controlOverlay=false;unsigned controlRevision=0xffffffff;uint32_t controlLastReport=0;
+void drawControl();void hideControl();
+int controlKind=0,controlValue=0,controlPhysical=0,controlPicked=1;
 bool playing=false,drone=false,linked=false;uint32_t lastState=0,lastTouch=0;
 int sceneSlot=0,sceneStatus=0;bool sceneExists=false,sceneDirty=true,sceneLocalName=false,sceneAwaitSave=false;
 uint32_t sceneRevision=0xffffffff;
@@ -35,9 +38,9 @@ void setRearLed(uint16_t color){
  ledcWrite(rearPins[2],255-(color&31)*brightness/31);
 }
 void label(const char*s,int x,int y,int font=2,uint16_t color=ink){tft.setTextColor(color,bg);tft.drawString(s,x,y,font);}
-void drawHeader(){if(sceneEditing)return;tft.fillRect(0,0,320,23,bg);label("PLAITS / POD",14,5,1,accents[page]);label(linked?"POD CONNECTED":"WAITING FOR POD",200,5,1,linked?mint:dim);}
+void drawHeader(){if(controlOverlay)return;if(sceneEditing)return;tft.fillRect(0,0,320,23,bg);label("PLAITS / POD",14,5,1,accents[page]);label(linked?"POD CONNECTED":"WAITING FOR POD",200,5,1,linked?mint:dim);}
 int rowY(int row){return page==0?110+row*32:page==1?86+row*40:62+row*46;}
-void drawRow(int index,int y){
+void drawRow(int index,int y){if(controlOverlay)return;
  tft.fillRect(10,y,300,page==0?31:40,bg);
  const char* labels[]={"HARMONICS","TIMBRE","MORPH","ROOT NOTE","DECAY","NOTE RATE","REVERB","DRIFT","VOLUME"};
  label(labels[index],14,y,2,sliderColors[index]);char text[32];
@@ -47,16 +50,16 @@ void drawRow(int index,int y){
  tft.setTextColor(sliderColors[index],bg);tft.drawRightString(text,304,y,2);
  int dy=page==0?22:23;tft.fillRoundRect(16,y+dy,288,8,4,panel);tft.fillRoundRect(16,y+dy,max(8,values[index]*288/1000),8,4,sliderColors[index]);
 }
-void drawModel(){uint16_t engineColor=accents[model<8?2:model<16?0:1];tft.fillRect(8,60,304,44,bg);for(int x=10;x<=270;x+=260){tft.fillRoundRect(x,60,40,43,6,panel);tft.setTextColor(engineColor,panel);tft.drawCentreString(x==10?"<":">",x+20,68,4);}char text[32];snprintf(text,sizeof(text),"ENGINE %d / 24",model+1);label(text,58,61,1,engineColor);label(names[model],58,79,2,engineColor);}
-void drawMode(){tft.fillRoundRect(14,60,292,23,5,panel);tft.setTextColor(accents[1],panel);tft.drawCentreString(drone?"MODE: DRONE (tap to change)":"MODE: AUTO NOTES (tap to change)",160,66,1);}
-void drawPlay(){if(sceneEditing)return;tft.fillRoundRect(14,208,292,30,6,playing?panel:mint);tft.setTextColor(playing?ink:bg,playing?panel:mint);tft.drawCentreString(playing?"PAUSE SOUND":"START SOUND",160,215,2);}
+void drawModel(){if(controlOverlay)return;uint16_t engineColor=accents[model<8?2:model<16?0:1];tft.fillRect(8,60,304,44,bg);for(int x=10;x<=270;x+=260){tft.fillRoundRect(x,60,40,43,6,panel);tft.setTextColor(engineColor,panel);tft.drawCentreString(x==10?"<":">",x+20,68,4);}char text[32];snprintf(text,sizeof(text),"ENGINE %d / 24",model+1);label(text,58,61,1,engineColor);label(names[model],58,79,2,engineColor);}
+void drawMode(){if(controlOverlay)return;tft.fillRoundRect(14,60,292,23,5,panel);tft.setTextColor(accents[1],panel);tft.drawCentreString(drone?"MODE: DRONE (tap to change)":"MODE: AUTO NOTES (tap to change)",160,66,1);}
+void drawPlay(){if(controlOverlay)return;if(sceneEditing)return;tft.fillRoundRect(14,208,292,30,6,playing?panel:mint);tft.setTextColor(playing?ink:bg,playing?panel:mint);tft.drawCentreString(playing?"PAUSE SOUND":"START SOUND",160,215,2);}
 void sceneSendSave(){
  char hex[41];const char* digits="0123456789ABCDEF";unsigned n=strlen(sceneName);
  for(unsigned i=0;i<n;i++){unsigned c=static_cast<unsigned char>(sceneName[i]);hex[2*i]=digits[c>>4];hex[2*i+1]=digits[c&15];}hex[2*n]=0;
  sceneAwaitSave=true;podLink.printf("SCENE SAVE %d %s\n",sceneSlot,hex);sceneConfirm=false;drawScenes();
 }
 void sceneButton(int x,int y,int width,const char* text,uint16_t color){tft.fillRoundRect(x,y,width,36,5,panel);tft.drawRoundRect(x,y,width,36,5,color);tft.setTextColor(color,panel);tft.drawCentreString(text,x+width/2,y+10,2);}
-void drawScenes(){
+void drawScenes(){if(controlOverlay)return;
  if(sceneEditing)return;tft.fillRect(0,56,320,149,bg);
  if(sceneConfirm){label("REPLACE SAVED SCENE?",18,68,2,accents[1]);label(sceneName,18,96,2);sceneButton(14,145,140,"CANCEL",dim);sceneButton(166,145,140,"REPLACE",accents[1]);return;}
  for(int x=10;x<=270;x+=260){tft.fillRoundRect(x,60,40,43,6,panel);tft.setTextColor(accents[3],panel);tft.drawCentreString(x==10?"<":">",x+20,68,4);}
@@ -68,11 +71,11 @@ void drawScenes(){
 int matchingMood(){
  for(unsigned m=0;m<moodCount;m++){bool match=model==moods[m].model&&drone==moods[m].drone;for(unsigned i=0;i<9;i++)if(values[i]!=moods[m].values[i])match=false;if(match)return m;}return -1;
 }
-void drawMoods(){
+void drawMoods(){if(controlOverlay)return;
  if(sceneEditing)return;tft.fillRect(0,56,320,149,bg);int active=matchingMood();
  for(unsigned i=0;i<moodCount;i++){int x=10+(i%2)*155,y=60+(i/2)*48;uint16_t color=accents[4];tft.fillRoundRect(x,y,145,43,5,panel);if(int(i)==active)tft.drawRoundRect(x,y,145,43,5,color);tft.setTextColor(color,panel);tft.drawString(moods[i].name,x+7,y+5,2);tft.setTextColor(ink,panel);tft.drawString(moods[i].description,x+7,y+28,1);}
 }
-void drawKeyboard(){
+void drawKeyboard(){if(controlOverlay)return;
  tft.fillScreen(bg);label("SCENE NAME (20 CHARACTERS)",14,3,1,dim);label(editingName,14,18,2,accents[3]);tft.fillRoundRect(250,8,56,28,4,panel);tft.setTextColor(accents[3],panel);tft.drawCentreString("CLEAR",278,18,1);
  const char* rows[]={"1234567890","QWERTYUIOP","ASDFGHJKL","ZXCVBNM-_"};
  for(int row=0;row<4;row++)for(unsigned k=0;rows[row][k];k++){int x=5+k*31,y=42+row*34;tft.fillRoundRect(x,y,28,30,3,panel);char c[2]={rows[row][k],0};tft.setTextColor(ink,panel);tft.drawCentreString(c,x+14,y+6,2);}
@@ -86,11 +89,23 @@ void keyboardTouch(int x,int y){
  if(y>=179&&y<203){if(x>=166){if(n)editingName[n-1]=0;}else if(x>=14&&x<154&&n<20){editingName[n]=' ';editingName[n+1]=0;}drawKeyboard();return;}
  if(y>=42&&y<178&&x>=5){int row=(y-42)/34,k=(x-5)/31;const char* rows[]={"1234567890","QWERTYUIOP","ASDFGHJKL","ZXCVBNM-_"};if(row<4&&k>=0&&k<int(strlen(rows[row]))&&n<20){editingName[n]=rows[row][k];editingName[n+1]=0;drawKeyboard();}}
 }
-void draw(){
+void draw(){if(controlOverlay)return;
  if(sceneEditing){drawKeyboard();return;}
  tft.fillScreen(bg);drawHeader();const char* tabs[]={"SOUND","PLAY","SPACE","SCENES","MOODS"};
  for(int i=0;i<5;i++){tft.fillRoundRect(3+i*63,25,60,28,5,i==page?panel:bg);if(i==page)tft.drawRoundRect(3+i*63,25,60,28,5,accents[i]);else tft.drawFastHLine(8+i*63,51,50,accents[i]);tft.setTextColor(accents[i],i==page?panel:bg);tft.drawCentreString(tabs[i],33+i*63,31,2);}
  if(page==4)drawMoods();else if(page==3)drawScenes();else{if(page==0)drawModel();if(page==1)drawMode();for(int row=0;row<3;row++)drawRow(page*3+row,rowY(row));}drawPlay();
+}
+void hideControl(){if(!controlOverlay)return;controlOverlay=false;draw();}
+void drawControl(){
+ tft.fillRoundRect(10,69,300,121,9,panel);tft.drawRoundRect(10,69,300,121,9,mint);
+ const char* title=controlKind==1?"KNOB 1 / TIMBRE":controlKind==2?"KNOB 2 / MORPH":controlKind==3?"ENCODER / ENGINE":controlKind==4?"BUTTON 1 / PLAYBACK":controlKind==5?"BUTTON 2 / MODE":"ENCODER PRESS";
+ tft.setTextColor(mint,panel);tft.drawCentreString(title,160,81,2);
+ char text[64],detail[64];detail[0]=0;
+ if(controlKind<=2){snprintf(text,sizeof(text),"%d%%",(controlValue+5)/10);if(!controlPicked)snprintf(detail,sizeof(detail),"Knob %d%% - turn to %d%% to pick up",(controlPhysical+5)/10,(controlValue+5)/10);else snprintf(detail,sizeof(detail),"Release after adjusting");}
+ else if(controlKind==3||controlKind==6){snprintf(text,sizeof(text),"%s",names[controlValue]);snprintf(detail,sizeof(detail),controlKind==6?"Engine %d / 24 - turn to change":"Engine %d / 24",controlValue+1);}
+ else if(controlKind==4)snprintf(text,sizeof(text),"%s",controlValue?"PLAYING":"PAUSED");
+ else snprintf(text,sizeof(text),"%s",controlValue?"DRONE":"AUTO NOTES");
+ tft.setTextColor(ink,panel);tft.drawCentreString(text,160,116,2);tft.setTextColor(mint,panel);tft.drawCentreString(detail,160,157,1);
 }
 void calibrate() {
  float rx[3],ry[3];const float sx[3]={28,292,160},sy[3]={28,28,212};
@@ -130,6 +145,12 @@ void loop(){
     if(valid){if(model!=m){model=m;if(page==0)drawModel();}for(int i=0;i<9;i++)if(values[i]!=v[i]){values[i]=v[i];if(i/3==page)drawRow(i,rowY(i%3));}
      if(drone!=bool(d)){drone=d;if(page==1)drawMode();}if(playing!=bool(p)){playing=p;drawPlay();}if(!linked){linked=true;drawHeader();}lastState=millis();Serial.printf("DIRECT %s\n",line);if(page==4&&!sceneEditing){static int lastMood=-2;int active=matchingMood();if(lastMood!=active){lastMood=active;drawMoods();}}}
    }
+   if(!overflow&&!strncmp(line,"CONTROL ",8)){
+    unsigned revision;int kind,value,physical,picked;
+    if(sscanf(line,"CONTROL %u %d %d %d %d",&revision,&kind,&value,&physical,&picked)==5&&kind>=0&&kind<=6&&physical>=0&&physical<=1000&&(picked==0||picked==1)&&value>=0&&value<=((kind==3||kind==6)?23:(kind==4||kind==5)?1:1000)){
+     controlLastReport=millis();if(revision!=controlRevision){Serial.printf("FEEDBACK %u %d %d %d %d\n",revision,kind,value,physical,picked);controlRevision=revision;controlKind=kind;controlValue=value;controlPhysical=physical;controlPicked=picked;if(kind){controlOverlay=true;drawControl();}else hideControl();}
+    }
+   }
    if(!overflow&&!strncmp(line,"SCENE ",6)){
     int slot,status,exists,dirty;unsigned long revision;char hex[41];
     if(sscanf(line,"SCENE %d %lu %d %d %d %40s",&slot,&revision,&status,&exists,&dirty,hex)==6&&slot>=0&&slot<32&&status>=0&&status<=7&&(exists==0||exists==1)&&(dirty==0||dirty==1)){
@@ -150,8 +171,10 @@ void loop(){
    used=0;overflow=false;
   }else if(c!='\r'){if(used<sizeof(line)-1)line[used++]=c;else overflow=true;}
  }
+ if(controlOverlay&&millis()-controlLastReport>1000)hideControl();
  if(linked&&millis()-lastState>2000){linked=false;drawHeader();}
  bool down=touch.touched();if(down&&millis()-lastTouch>45){auto p=touch.getPoint();if(p.z>200){int x=lroundf(ax*p.x+bx*p.y+cx),y=lroundf(ay*p.x+by*p.y+cy);
+  if(controlOverlay&&!wasDown)hideControl();
   if(sceneEditing){if(!wasDown)keyboardTouch(x,y);}
   else if(!wasDown&&y>=25&&y<54&&x>=3&&x<318){int next=constrain((x-3)/63,0,4);if(next!=page){page=next;sceneConfirm=false;draw();}}
   else if(linked){
