@@ -1,0 +1,10 @@
+{
+  "extra_bounds_and_control": true,
+  "existing_FIRST_SOUND_loaded_paused_with_neutral_extensions": true,
+  "original_settings_restored_paused": true,
+  "serial_errors": 0,
+  "missed_audio_blocks": 0,
+  "scene_tests": "v1 compatibility and v2 storage tests passed with ASan/UBSan",
+  "audio_host_test": "24 engines, varied new controls, finite bounded output and pause fade, ASan",
+  "physical_listening": "pending"
+}

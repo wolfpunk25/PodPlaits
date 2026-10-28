@@ -8,9 +8,9 @@ HardwareSerial podLink(2);
 TFT_eSPI tft;SPIClass touchSpi(VSPI);XPT2046_Touchscreen touch(33,36);Preferences preferences;
 float ax=0,bx=0,cx=0,ay=0,by=0,cy=0;
 const uint16_t bg=0x0000,panel=0x18E3,mint=0x7DB7,ink=0xBDF7,dim=0x7BEF;
-const uint16_t accents[5]={0x4DF6,0xFCAA,0xB37F,0x8E51,0xFC8D};
-const uint16_t sliderColors[9]={0x4DF6,0xFC8D,0xB37F,0xFCAA,0xFBAE,0x8E51,0xB37F,0x4DF6,0x7DB7};
-int values[9]={500,500,500,333,650,260,250,150,400};int model=14,page=0;
+const uint16_t accents[6]={0x4DF6,0xFCAA,0xB37F,0x8E51,0xFC8D,0x7DB7};
+const uint16_t sliderColors[12]={0x4DF6,0xFC8D,0xB37F,0xFCAA,0xFBAE,0x8E51,0xB37F,0x4DF6,0x7DB7,0x7DB7,0xFC8D,0xB37F};
+int values[12]={500,500,500,333,650,260,250,150,400,500,500,500};int model=14,page=0;
 bool controlOverlay=false;unsigned controlRevision=0xffffffff;uint32_t controlLastReport=0;
 void drawControl();void hideControl();
 int controlKind=0,controlValue=0,controlPhysical=0,controlPicked=1;
@@ -42,10 +42,11 @@ void drawHeader(){if(controlOverlay)return;if(sceneEditing)return;tft.fillRect(0
 int rowY(int row){return page==0?110+row*32:page==1?86+row*40:62+row*46;}
 void drawRow(int index,int y){if(controlOverlay)return;
  tft.fillRect(10,y,300,page==0?31:40,bg);
- const char* labels[]={"HARMONICS","TIMBRE","MORPH","ROOT NOTE","DECAY","NOTE RATE","REVERB","DRIFT","VOLUME"};
+ const char* labels[]={"HARMONICS","TIMBRE","MORPH","ROOT NOTE","DECAY","NOTE RATE","REVERB","DRIFT","VOLUME","NOTE TONE","TIMBRE ENV","MORPH ENV"};
  label(labels[index],14,y,2,sliderColors[index]);char text[32];
  if(index==3){const char* notes[]={"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};int n=36+(values[index]*36+500)/1000;snprintf(text,sizeof(text),"%s%d",notes[n%12],n/12-1);}
  else if(index==5)snprintf(text,sizeof(text),"%.2f / sec",.1f+values[5]*1.9f/1000);
+ else if(index>=10)snprintf(text,sizeof(text),"%+d%%",(values[index]-500)/5);
  else snprintf(text,sizeof(text),"%d%%",values[index]/10);
  tft.setTextColor(sliderColors[index],bg);tft.drawRightString(text,304,y,2);
  int dy=page==0?22:23;tft.fillRoundRect(16,y+dy,288,8,4,panel);tft.fillRoundRect(16,y+dy,max(8,values[index]*288/1000),8,4,sliderColors[index]);
@@ -69,6 +70,7 @@ void drawScenes(){if(controlOverlay)return;
  sceneButton(14,118,140,"LOAD",sceneExists?accents[3]:dim);sceneButton(166,118,140,"SAVE",accents[3]);sceneButton(14,164,292,"EDIT NAME",accents[3]);
 }
 int matchingMood(){
+ for(int i=9;i<12;i++)if(values[i]!=500)return -1;
  for(unsigned m=0;m<moodCount;m++){bool match=model==moods[m].model&&drone==moods[m].drone;for(unsigned i=0;i<9;i++)if(values[i]!=moods[m].values[i])match=false;if(match)return m;}return -1;
 }
 void drawMoods(){if(controlOverlay)return;
@@ -91,9 +93,9 @@ void keyboardTouch(int x,int y){
 }
 void draw(){if(controlOverlay)return;
  if(sceneEditing){drawKeyboard();return;}
- tft.fillScreen(bg);drawHeader();const char* tabs[]={"SOUND","PLAY","SPACE","SCENES","MOODS"};
- for(int i=0;i<5;i++){tft.fillRoundRect(3+i*63,25,60,28,5,i==page?panel:bg);if(i==page)tft.drawRoundRect(3+i*63,25,60,28,5,accents[i]);else tft.drawFastHLine(8+i*63,51,50,accents[i]);tft.setTextColor(accents[i],i==page?panel:bg);tft.drawCentreString(tabs[i],33+i*63,31,2);}
- if(page==4)drawMoods();else if(page==3)drawScenes();else{if(page==0)drawModel();if(page==1)drawMode();for(int row=0;row<3;row++)drawRow(page*3+row,rowY(row));}drawPlay();
+ tft.fillScreen(bg);drawHeader();const char* tabs[]={"SOUND","PLAY","SPACE","SCENES","MOODS","TONE"};
+ for(int i=0;i<6;i++){int x=2+i*53;tft.fillRoundRect(x,25,51,28,5,i==page?panel:bg);if(i==page)tft.drawRoundRect(x,25,51,28,5,accents[i]);else tft.drawFastHLine(x+4,51,43,accents[i]);tft.setTextColor(accents[i],i==page?panel:bg);tft.drawCentreString(tabs[i],x+25,35,1);}
+ if(page==4)drawMoods();else if(page==3)drawScenes();else{if(page==0)drawModel();if(page==1)drawMode();for(int row=0;row<3;row++)drawRow((page==5?9:page*3)+row,rowY(row));if(page==5)label(drone?"NOTE ENVELOPES: SWITCH TO AUTO NOTES":"ENV: -100% < NEUTRAL 0% > +100%",14,199,1,dim);}drawPlay();
 }
 void hideControl(){if(!controlOverlay)return;controlOverlay=false;draw();}
 void drawControl(){
@@ -145,6 +147,10 @@ void loop(){
     if(valid){if(model!=m){model=m;if(page==0)drawModel();}for(int i=0;i<9;i++)if(values[i]!=v[i]){values[i]=v[i];if(i/3==page)drawRow(i,rowY(i%3));}
      if(drone!=bool(d)){drone=d;if(page==1)drawMode();}if(playing!=bool(p)){playing=p;drawPlay();}if(!linked){linked=true;drawHeader();}lastState=millis();Serial.printf("DIRECT %s\n",line);if(page==4&&!sceneEditing){static int lastMood=-2;int active=matchingMood();if(lastMood!=active){lastMood=active;drawMoods();}}}
    }
+   if(!overflow&&!strncmp(line,"EXTRA ",6)){
+    int extra[3];if(sscanf(line,"EXTRA %d %d %d",&extra[0],&extra[1],&extra[2])==3){bool ok=true;for(int i=0;i<3;i++)if(extra[i]<0||extra[i]>1000)ok=false;
+     if(ok)for(int i=0;i<3;i++)if(values[9+i]!=extra[i]){values[9+i]=extra[i];if(page==5)drawRow(9+i,rowY(i));}}
+   }
    if(!overflow&&!strncmp(line,"CONTROL ",8)){
     unsigned revision;int kind,value,physical,picked;
     if(sscanf(line,"CONTROL %u %d %d %d %d",&revision,&kind,&value,&physical,&picked)==5&&kind>=0&&kind<=6&&physical>=0&&physical<=1000&&(picked==0||picked==1)&&value>=0&&value<=((kind==3||kind==6)?23:(kind==4||kind==5)?1:1000)){
@@ -176,7 +182,7 @@ void loop(){
  bool down=touch.touched();if(down&&millis()-lastTouch>45){auto p=touch.getPoint();if(p.z>200){int x=lroundf(ax*p.x+bx*p.y+cx),y=lroundf(ay*p.x+by*p.y+cy);
   if(controlOverlay&&!wasDown)hideControl();
   if(sceneEditing){if(!wasDown)keyboardTouch(x,y);}
-  else if(!wasDown&&y>=25&&y<54&&x>=3&&x<318){int next=constrain((x-3)/63,0,4);if(next!=page){page=next;sceneConfirm=false;draw();}}
+  else if(!wasDown&&y>=25&&y<54&&x>=3&&x<318){int next=constrain((x-2)/53,0,5);if(next!=page){page=next;sceneConfirm=false;draw();}}
   else if(linked){
    if(y>=208&&y<240&&!wasDown)podLink.printf("PLAY %d\n",playing?0:1);
    else if(page==4&&!wasDown&&y>=60&&y<199){
@@ -194,7 +200,7 @@ void loop(){
    }
    else if(page==0&&y>=60&&y<104&&!wasDown){if(x>=8&&x<53)podLink.printf("MODEL %d\n",(model+23)%24);else if(x>=268&&x<=312)podLink.printf("MODEL %d\n",(model+1)%24);}
    else if(page==1&&y>=60&&y<84&&!wasDown)podLink.printf("MODE %d\n",drone?0:1);
-   else if(page<3){int top=page==0?110:page==1?86:62,step=page==0?32:page==1?40:46;if(y>=top&&y<top+step*3&&y<205&&x>=8&&x<=312){int row=(y-top)/step;podLink.printf("SET %d %d\n",page*3+row,constrain((x-16)*1000/288,0,1000));}}
+   else if(page<3||page==5){int top=page==0?110:page==1?86:62,step=page==0?32:page==1?40:46;if(y>=top&&y<top+step*3&&y<205&&x>=8&&x<=312){int row=(y-top)/step;podLink.printf("SET %d %d\n",(page==5?9:page*3)+row,constrain((x-16)*1000/288,0,1000));}}
   }wasDown=true;lastTouch=millis();}}
  if(!down)wasDown=false;
  static uint32_t lastPing=0;if(millis()-lastPing>=1000){lastPing=millis();podLink.print("PING\n");}

@@ -35,11 +35,11 @@ void sceneInit(){
  SdmmcHandler::Config config;config.Defaults();sceneSd.Init(config);sceneFs.Init(FatFSInterface::Config::MEDIA_SD);
  sceneMounted=f_mount(&sceneFs.GetSDFileSystem(),"/",1)==FR_OK;sceneSelect(0);
 }
-bool sceneMatches(){if(!sceneExists||sceneCached.model!=model||sceneCached.drone!=bool(drone))return false;for(unsigned i=0;i<9;i++)if(sceneCached.values[i]!=values[i])return false;return true;}
+bool sceneMatches(){if(!sceneExists||sceneCached.model!=model||sceneCached.drone!=bool(drone))return false;for(unsigned i=0;i<12;i++)if(sceneCached.values[i]!=values[i])return false;return true;}
 void sceneUpdateDirty(){bool dirty=!sceneMatches();if(dirty!=sceneDirty){sceneDirty=dirty;sceneRevision++;}}
 void sceneSave(int slot,const char* hex){
  if(slot<0||slot>=32)return;
- SceneData data;data.model=model;data.drone=drone;for(unsigned i=0;i<9;i++)data.values[i]=values[i];
+ SceneData data;data.model=model;data.drone=drone;for(unsigned i=0;i<12;i++)data.values[i]=values[i];
  if(!SceneNameFromHex(hex,data.name)){sceneStatus=4;sceneRevision++;return;}
  if(slot!=sceneSlot)sceneSelect(slot);
  if(!sceneMounted){sceneStatus=3;sceneRevision++;return;}
@@ -60,7 +60,7 @@ void sceneSave(int slot,const char* hex){
 }
 void applySound(const SceneData& data){
  playing=false;benchmark=false;System::Delay(350);sceneLoading=true;System::Delay(3);
- model=data.model;drone=data.drone;for(unsigned i=0;i<9;i++)values[i]=data.values[i];
+ model=data.model;drone=data.drone;for(unsigned i=0;i<12;i++)values[i]=data.values[i];
  reverb.Init(48000);reverb.SetFeedback(.85f);reverb.SetLpFreq(9000);
  resetPickup=true;resetScene=true;__DMB();sceneLoading=false;
 }

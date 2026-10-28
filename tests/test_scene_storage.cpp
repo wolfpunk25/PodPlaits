@@ -1,7 +1,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdint>
-int model=14,values[9]={500,500,500,333,650,260,250,150,400};
+int model=14,values[12]={500,500,500,333,650,260,250,150,400,500,500,500};
 bool resetPickup=false,drone=false,playing=true,benchmark=false,sceneLoading=false,resetScene=false;
 struct System{static void Delay(int){}};
 struct Reverb{void Init(int){}void SetFeedback(float){}void SetLpFreq(int){}}reverb;
@@ -23,10 +23,12 @@ int main(){
  sceneLoad(0);assert(!playing&&model==7);sceneUpdateDirty();assert(!sceneDirty);
  sceneSelect(31);assert(!sceneExists&&sceneStatus==6);model=23;sceneLoad(31);assert(model==23);
  sceneMounted=false;sceneSave(1,"4E4F205344");assert(sceneStatus==3);
+ values[9]=123;values[10]=0;values[11]=1000;sceneMounted=true;sceneSave(2,"544F4E452054455354");assert(sceneStatus==1);values[9]=500;values[10]=500;values[11]=500;sceneLoad(2);assert(values[9]==123&&values[10]==0&&values[11]==1000);values[11]=999;sceneUpdateDirty();assert(sceneDirty);
  auto before=disk;
  for(unsigned n=0;n<moodCount;n++){
   playing=true;benchmark=true;moodLoad(n);assert(!playing&&!benchmark&&model==moods[n].model&&drone==moods[n].drone);
   for(unsigned i=0;i<9;i++)assert(values[i]==moods[n].values[i]&&values[i]<=1000);
+  for(int i=9;i<12;i++)assert(values[i]==500);
   assert(SceneNameValid(moods[n].name));assert(disk==before);
  }
  int last=model;moodLoad(-1);moodLoad(moodCount);assert(model==last);

@@ -14,7 +14,7 @@ DaisyPod hw;
 plaits::Voice voice;
 alignas(16) uint8_t voiceMemory[32768];
 daisysp::ReverbSc DSY_SDRAM_BSS reverb;
-volatile int values[9]={500,500,500,333,650,260,250,150,400};
+volatile int values[12]={500,500,500,333,650,260,250,150,400,500,500,500};
 volatile int model=14;
 volatile bool playing=false,drone=false,benchmark=false;
 volatile int currentNote=48;
@@ -76,7 +76,7 @@ void Audio(AudioHandle::InputBuffer,AudioHandle::OutputBuffer out,size_t count){
  patch.harmonics=clamp(values[0]/1000.f+.13f*drift*sinf(6.2831853f*phase));
  patch.timbre=clamp(values[1]/1000.f+.25f*drift*sinf(6.2831853f*phase+2.1f/6.2831853f));
  patch.morph=clamp(values[2]/1000.f+.25f*drift*cosf(6.2831853f*phase+.7f/6.2831853f));
- patch.decay=values[4]/1000.f;patch.lpg_colour=.5f;
+ patch.decay=values[4]/1000.f;patch.lpg_colour=values[9]/1000.f;patch.timbre_modulation_amount=(int(values[10])-500)/500.f;patch.morph_modulation_amount=(int(values[11])-500)/500.f;
  plaits::Modulations mod{};
  mod.trigger_patched=!drone;mod.trigger=trigger?1:0;mod.level=1;
  voice.Render(patch,mod,frames,count);
@@ -102,7 +102,7 @@ void Command(char* line){
  if(sscanf(line,"SCENE SELECT %d",&index)==1){sceneSelect(index);return;}
  if(sscanf(line,"SCENE SAVE %d %40s",&index,hex)==2){sceneSave(index,hex);return;}
  if(sscanf(line,"SCENE LOAD %d",&index)==1){sceneLoad(index);return;}
- if(sscanf(line,"SET %d %d",&index,&value)==2&&index>=0&&index<9&&value>=0&&value<=1000)values[index]=value;
+ if(sscanf(line,"SET %d %d",&index,&value)==2&&index>=0&&index<12&&value>=0&&value<=1000)values[index]=value;
  else if(sscanf(line,"MODEL %d",&value)==1&&value>=0&&value<24){model=value;cpuPeak=overruns=0;}
  else if(!strcmp(line,"PLAY 1"))playing=true;
  else if(!strcmp(line,"PLAY 0"))playing=false;
@@ -148,6 +148,7 @@ int main(){
   sceneUpdateDirty();
   if(now-lastReport>=100||(feedback.revision!=lastFeedbackSent&&now-lastReport>=30)){lastReport=now;lastFeedbackSent=feedback.revision;
    int n=snprintf(message,sizeof(message),"PSTATE %d %d %d %d %d %d %d %d %d %d %d %d %d %u %u\n",model,values[0],values[1],values[2],values[3],values[4],values[5],values[6],values[7],values[8],playing?1:0,drone?1:0,currentNote,cpuPeak,overruns);
+   n+=snprintf(message+n,sizeof(message)-n,"EXTRA %d %d %d\n",values[9],values[10],values[11]);
    char sceneHex[41];SceneNameToHex(sceneCached.name,sceneHex);
    n+=snprintf(message+n,sizeof(message)-n,"SCENE %d %lu %d %d %d %s\n",sceneSlot,static_cast<unsigned long>(sceneRevision),sceneStatus,sceneExists?1:0,sceneDirty?1:0,sceneHex);
    n+=snprintf(message+n,sizeof(message)-n,"CONTROL %u %d %d %d %d\n",feedback.revision,feedback.kind,feedback.value,feedback.physical,feedback.picked);
