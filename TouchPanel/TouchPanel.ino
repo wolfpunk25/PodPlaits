@@ -7,9 +7,9 @@
 HardwareSerial podLink(2);
 TFT_eSPI tft;SPIClass touchSpi(VSPI);XPT2046_Touchscreen touch(33,36);Preferences preferences;
 float ax=0,bx=0,cx=0,ay=0,by=0,cy=0;
-const uint16_t bg=0x0000,panel=0x18E3,mint=0x7DB7,ink=0xBDF7,dim=0x7BEF;
-const uint16_t accents[6]={0x4DF6,0xFCAA,0xB37F,0x8E51,0xFC8D,0x7DB7};
-const uint16_t sliderColors[12]={0x4DF6,0xFC8D,0xB37F,0xFCAA,0xFBAE,0x8E51,0xB37F,0x4DF6,0x7DB7,0x7DB7,0xFC8D,0xB37F};
+const uint16_t bg=0x0000,panel=0x2124,mint=0x07E8,ink=0xFFFF,dim=0xAD55;
+const uint16_t accents[6]={0x07FF,0xFD20,0xD39F,0x07E0,0xFC1F,0xFFE0};
+const uint16_t sliderColors[12]={0x07FF,0xFD20,0xD39F,0xFFE0,0xF81F,0x07E0,0xD39F,0x07FF,0x07E8,0xFFE0,0xFD20,0xD39F};
 int values[12]={500,500,500,333,650,260,250,150,400,500,500,500};int model=14,page=0;
 bool controlOverlay=false;unsigned controlRevision=0xffffffff;uint32_t controlLastReport=0;
 void drawControl();void hideControl();
@@ -53,13 +53,13 @@ void drawRow(int index,int y){if(controlOverlay)return;
 }
 void drawModel(){if(controlOverlay)return;uint16_t engineColor=accents[model<8?2:model<16?0:1];tft.fillRect(8,60,304,44,bg);for(int x=10;x<=270;x+=260){tft.fillRoundRect(x,60,40,43,6,panel);tft.setTextColor(engineColor,panel);tft.drawCentreString(x==10?"<":">",x+20,68,4);}char text[32];snprintf(text,sizeof(text),"ENGINE %d / 24",model+1);label(text,58,61,1,engineColor);label(names[model],58,79,2,engineColor);}
 void drawMode(){if(controlOverlay)return;tft.fillRoundRect(14,60,292,23,5,panel);tft.setTextColor(accents[1],panel);tft.drawCentreString(drone?"MODE: DRONE (tap to change)":"MODE: AUTO NOTES (tap to change)",160,66,1);}
-void drawPlay(){if(controlOverlay)return;if(sceneEditing)return;tft.fillRoundRect(14,208,292,30,6,playing?panel:mint);tft.setTextColor(playing?ink:bg,playing?panel:mint);tft.drawCentreString(playing?"PAUSE SOUND":"START SOUND",160,215,2);}
+void drawPlay(){if(controlOverlay)return;if(sceneEditing)return;tft.fillRoundRect(14,208,292,30,6,playing?0xFD20:mint);tft.setTextColor(bg,playing?0xFD20:mint);const char* text=playing?"PAUSE SOUND":"START SOUND";int x=160-tft.textWidth(text,2)/2;tft.setTextColor(TFT_BLACK);tft.drawString(text,x,215,2);tft.drawString(text,x+1,215,2);}
 void sceneSendSave(){
  char hex[41];const char* digits="0123456789ABCDEF";unsigned n=strlen(sceneName);
  for(unsigned i=0;i<n;i++){unsigned c=static_cast<unsigned char>(sceneName[i]);hex[2*i]=digits[c>>4];hex[2*i+1]=digits[c&15];}hex[2*n]=0;
  sceneAwaitSave=true;podLink.printf("SCENE SAVE %d %s\n",sceneSlot,hex);sceneConfirm=false;drawScenes();
 }
-void sceneButton(int x,int y,int width,const char* text,uint16_t color){tft.fillRoundRect(x,y,width,36,5,panel);tft.drawRoundRect(x,y,width,36,5,color);tft.setTextColor(color,panel);tft.drawCentreString(text,x+width/2,y+10,2);}
+void sceneButton(int x,int y,int width,const char* text,uint16_t color){uint16_t fill=color==dim?panel:color;tft.fillRoundRect(x,y,width,36,5,fill);tft.drawRoundRect(x,y,width,36,5,color);tft.setTextColor(color==dim?dim:bg,fill);tft.drawCentreString(text,x+width/2,y+10,2);}
 void drawScenes(){if(controlOverlay)return;
  if(sceneEditing)return;tft.fillRect(0,56,320,149,bg);
  if(sceneConfirm){label("REPLACE SAVED SCENE?",18,68,2,accents[1]);label(sceneName,18,96,2);sceneButton(14,145,140,"CANCEL",dim);sceneButton(166,145,140,"REPLACE",accents[1]);return;}
@@ -75,7 +75,7 @@ int matchingMood(){
 }
 void drawMoods(){if(controlOverlay)return;
  if(sceneEditing)return;tft.fillRect(0,56,320,149,bg);int active=matchingMood();
- for(unsigned i=0;i<moodCount;i++){int x=10+(i%2)*155,y=60+(i/2)*48;uint16_t color=accents[4];tft.fillRoundRect(x,y,145,43,5,panel);if(int(i)==active)tft.drawRoundRect(x,y,145,43,5,color);tft.setTextColor(color,panel);tft.drawString(moods[i].name,x+7,y+5,2);tft.setTextColor(ink,panel);tft.drawString(moods[i].description,x+7,y+28,1);}
+ for(unsigned i=0;i<moodCount;i++){int x=10+(i%2)*155,y=60+(i/2)*48;uint16_t color=accents[i],fill=int(i)==active?color:panel;tft.fillRoundRect(x,y,145,43,5,fill);tft.drawRoundRect(x,y,145,43,5,color);tft.setTextColor(int(i)==active?bg:color,fill);tft.drawString(moods[i].name,x+7,y+5,2);tft.setTextColor(int(i)==active?bg:ink,fill);tft.drawString(moods[i].description,x+7,y+28,1);}
 }
 void drawKeyboard(){if(controlOverlay)return;
  tft.fillScreen(bg);label("SCENE NAME (20 CHARACTERS)",14,3,1,dim);label(editingName,14,18,2,accents[3]);tft.fillRoundRect(250,8,56,28,4,panel);tft.setTextColor(accents[3],panel);tft.drawCentreString("CLEAR",278,18,1);
@@ -94,20 +94,24 @@ void keyboardTouch(int x,int y){
 void draw(){if(controlOverlay)return;
  if(sceneEditing){drawKeyboard();return;}
  tft.fillScreen(bg);drawHeader();const char* tabs[]={"SOUND","PLAY","SPACE","SCENES","MOODS","TONE"};
- for(int i=0;i<6;i++){int x=2+i*53;tft.fillRoundRect(x,25,51,28,5,i==page?panel:bg);if(i==page)tft.drawRoundRect(x,25,51,28,5,accents[i]);else tft.drawFastHLine(x+4,51,43,accents[i]);tft.setTextColor(accents[i],i==page?panel:bg);tft.drawCentreString(tabs[i],x+25,35,1);}
+ for(int i=0;i<6;i++){int x=2+i*53;tft.fillRoundRect(x,25,51,28,5,i==page?accents[i]:panel);tft.drawRoundRect(x,25,51,28,5,accents[i]);tft.setTextColor(i==page?bg:accents[i],i==page?accents[i]:panel);tft.drawCentreString(tabs[i],x+25,35,1);}
  if(page==4)drawMoods();else if(page==3)drawScenes();else{if(page==0)drawModel();if(page==1)drawMode();for(int row=0;row<3;row++)drawRow((page==5?9:page*3)+row,rowY(row));if(page==5)label(drone?"NOTE ENVELOPES: SWITCH TO AUTO NOTES":"ENV: -100% < NEUTRAL 0% > +100%",14,199,1,dim);}drawPlay();
 }
 void hideControl(){if(!controlOverlay)return;controlOverlay=false;draw();}
+void boldPopupText(const char* text,int y,int preferredFont){
+ int font=preferredFont;if(tft.textWidth(text,font)>280)font=2;if(tft.textWidth(text,font)>280)font=1;
+ int x=160-tft.textWidth(text,font)/2;tft.setTextColor(TFT_BLACK);tft.drawString(text,x,y,font);tft.drawString(text,x+1,y,font);
+}
 void drawControl(){
- tft.fillRoundRect(10,69,300,121,9,panel);tft.drawRoundRect(10,69,300,121,9,mint);
+ tft.fillRoundRect(10,69,300,121,9,0xFD20);tft.drawRoundRect(10,69,300,121,9,TFT_BLACK);
  const char* title=controlKind==1?"KNOB 1 / TIMBRE":controlKind==2?"KNOB 2 / MORPH":controlKind==3?"ENCODER / ENGINE":controlKind==4?"BUTTON 1 / PLAYBACK":controlKind==5?"BUTTON 2 / MODE":"ENCODER PRESS";
- tft.setTextColor(mint,panel);tft.drawCentreString(title,160,81,2);
+ boldPopupText(title,81,2);
  char text[64],detail[64];detail[0]=0;
  if(controlKind<=2){snprintf(text,sizeof(text),"%d%%",(controlValue+5)/10);if(!controlPicked)snprintf(detail,sizeof(detail),"Knob %d%% - turn to %d%% to pick up",(controlPhysical+5)/10,(controlValue+5)/10);else snprintf(detail,sizeof(detail),"Release after adjusting");}
  else if(controlKind==3||controlKind==6){snprintf(text,sizeof(text),"%s",names[controlValue]);snprintf(detail,sizeof(detail),controlKind==6?"Engine %d / 24 - turn to change":"Engine %d / 24",controlValue+1);}
  else if(controlKind==4)snprintf(text,sizeof(text),"%s",controlValue?"PLAYING":"PAUSED");
  else snprintf(text,sizeof(text),"%s",controlValue?"DRONE":"AUTO NOTES");
- tft.setTextColor(ink,panel);tft.drawCentreString(text,160,116,2);tft.setTextColor(mint,panel);tft.drawCentreString(detail,160,157,1);
+ boldPopupText(text,111,4);boldPopupText(detail,160,2);
 }
 void calibrate() {
  float rx[3],ry[3];const float sx[3]={28,292,160},sy[3]={28,28,212};

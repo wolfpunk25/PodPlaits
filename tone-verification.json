@@ -6,5 +6,5 @@
   "missed_audio_blocks": 0,
   "scene_tests": "v1 compatibility and v2 storage tests passed with ASan/UBSan",
   "audio_host_test": "24 engines, varied new controls, finite bounded output and pause fade, ASan",
-  "physical_listening": "pending"
+  "physical_listening": "User confirmed all new controls and existing popups work."
 }
